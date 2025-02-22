@@ -1,0 +1,22 @@
+2025-02-18
+- 2 hours
+- Creating project
+- Architecture planning
+- Base classes creation
+
+2025-02-19
+- ~6 hours
+- GAS base architecture creation
+- Character base architecture creation
+- Weapon class creation
+
+2025-02-20
+- 4 hours
+- Finish GAS base architecture creation
+- Rifle weapon abilities
+- Final tweaking to GAS integration
+
+2025-02-21
+- 4 hours
+- Starting overall gamemode flow implementation (game mode, game state, player state, player controller, UI)
+- Base classes creation and declarations
