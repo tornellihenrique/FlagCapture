@@ -13,11 +13,36 @@ UCLASS()
 class FLAGCAPTURE_API UFCPlayerOverlay : public UUserWidget
 {
 	GENERATED_BODY()
+	
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (BindWidget))
+	TObjectPtr<class UCanvasPanel> MainPanel;
 
 public:
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
-	void SetRespawnCountdown(float RespawnTimeRemaining);
-	
+	UFCPlayerOverlay(const FObjectInitializer& ObjectInitializer);
+
+	//~UUserWidget
+	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+	//~UUserWidget
+
+public:
+	void OnPlaying();
+	void OnDeath();
+
+protected:
+	UPROPERTY(BlueprintReadOnly)
+	bool bIsDead = true;
+
+public:
+	UFUNCTION(BlueprintImplementableEvent, Category = "Player Events")
+	void OnPlayingEvent();
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Player Events")
+	void OnDeathEvent();
+
+public:
 	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
 	void SetMaxHealth(float MaxHealth);
 

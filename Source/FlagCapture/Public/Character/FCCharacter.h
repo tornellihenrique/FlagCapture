@@ -5,12 +5,14 @@
 #include "CoreMinimal.h"
 #include "FCCharacterBase.h"
 #include "GameplayEffectTypes.h"
+#include "FCTypes.h"
 #include "FCCharacter.generated.h"
 
 class UAIPerceptionStimuliSourceComponent;
 
 class UFCAmmoAttributeSet;
 class UFCAnimInstance;
+class AFCPlayableArea;
 
 USTRUCT(BlueprintType)
 struct FCharacterInventory
@@ -25,6 +27,11 @@ struct FCharacterInventory
 	FCharacterInventory() {}
 };
 
+DECLARE_DELEGATE(FOnLoadoutInitialized);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAmmoAmountChanged, int32, Ammo);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAmmoReserveChanged, int32, Ammo);
+
 UCLASS()
 class FLAGCAPTURE_API AFCCharacter : public AFCCharacterBase
 {
@@ -35,7 +42,7 @@ class FLAGCAPTURE_API AFCCharacter : public AFCCharacterBase
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Configs")
-	TArray<TSubclassOf<AFCWeapon>> DefaultWeapons;
+	float DamageableTimeAfterRespawn = 3.0f;
 
 public:
 	AFCCharacter(const FObjectInitializer& ObjectInitializer);
@@ -64,9 +71,31 @@ public:
 	virtual void NotifyFinishDeath() override;
 	//~AFCCharacterBase
 
-protected:
+public:
+	FOnLoadoutInitialized OnLoadoutInitialized;
 
-	void SpawnDefaultInventory();
+	UPROPERTY(BlueprintAssignable, Category = "Events")
+	FOnAmmoAmountChanged OnAmmoAmountChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Events")
+	FOnAmmoReserveChanged OnAmmoReserveChanged;
+
+public:
+	virtual void PopulateLoadout(AController* InController, const FPlayerLoadout& InLoadout);
+
+	bool IsWeaponListInitialized() const;
+
+	virtual void OnPlaying(AFCPlayableArea* InCurrentArea);
+	UFUNCTION(Server, Reliable)
+	void ServerOnPlaying(AFCPlayableArea* InCurrentArea);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Character", meta = (DisplayName = "On Playing"))
+	void K2_OnPlaying();
+
+	virtual void OnMatchEnded();
+
+protected:
+	virtual void Damageable();
 
 	void SetCurrentWeapon(AFCWeapon* NewWeapon, AFCWeapon* LastWeapon);
 
@@ -83,7 +112,7 @@ protected:
 
 public:
 	UFUNCTION(BlueprintCallable, Category = "Character")
-	virtual bool AddWeaponToInventory(AFCWeapon* NewWeapon, bool bEquipWeapon = false);
+	virtual bool AddWeaponToInventory(AFCWeapon* NewWeapon);
 
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	virtual bool RemoveWeaponFromInventory(AFCWeapon* WeaponToRemove);
@@ -112,8 +141,17 @@ protected:
 	UPROPERTY(ReplicatedUsing = OnRep_Inventory)
 	FCharacterInventory Inventory;
 
+	UPROPERTY(Replicated)
+	uint8 bLoadoutInitialized : 1;
+
 	UPROPERTY()
 	uint8 bChangedWeaponLocally : 1;
+
+	UPROPERTY()
+	TObjectPtr<AFCPlayableArea> CurrentArea;
+
+	UPROPERTY()
+	uint8 bInsidePlayableArea : 1;
 
 	FGameplayTag CurrentWeaponTag;
 	FGameplayTag NoWeaponTag;
@@ -125,10 +163,27 @@ protected:
 	FDelegateHandle AmmoChangedDelegateHandle;
 	FDelegateHandle WeaponChangingDelayReplicationTagChangedDelegateHandle;
 
+	FTimerHandle TimerHandle_Damageable;
+
 	UPROPERTY()
 	UFCAnimInstance* AnimInstance;
 
 public:
+	UFUNCTION(BlueprintPure, Category = "Character")
+	ETeamSide GetPlayerSide() const;
+
+	UFUNCTION(BlueprintPure, Category = "Character")
+	AFCWeapon* GetWeapon() const { return CurrentWeapon; }
+
+	UFUNCTION(BlueprintPure, Category = "Character")
+	TArray<AFCWeapon*> GetWeaponList() const { return Inventory.Weapons; }
+
+	template<class T>
+	T* GetWeapon() const
+	{
+		return Cast<T>(GetWeapon());
+	}
+
 	UFUNCTION(BlueprintPure, Category = "Character")
 	int32 GetAmmoAmount() const;
 
@@ -140,15 +195,6 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Character")
 	int32 GetNumWeapons() const;
-
-	UFUNCTION(BlueprintPure, Category = "Character")
-	AFCWeapon* GetWeapon() const { return CurrentWeapon; }
-
-	template<class T>
-	T* GetWeapon() const
-	{
-		return Cast<T>(GetWeapon());
-	}
 
 	UFUNCTION(BlueprintPure, Category = "Character")
 	virtual AFCWeapon* GetNextWeapon();

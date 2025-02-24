@@ -15,6 +15,7 @@ class UFCGameplayAbility;
 class AFCGATA_LineTrace;
 class AFCGATA_SphereTrace;
 class UFCAbilitySystemComponent;
+class UDamageType;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FWeaponAmmoChangedDelegate, int32, OldValue, int32, NewValue);
 
@@ -46,6 +47,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Configs")
 	FGameplayTag AmmoType;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Configs")
+	TSubclassOf<UDamageType> DamageType;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Configs")
 	TObjectPtr<UAnimSequence> AnimPose;

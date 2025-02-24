@@ -1,9 +1,12 @@
 #include "Character/FCCharacterBase.h"
 
+#include "Components/CapsuleComponent.h"
+
 #include "Character/FCCharacterMovementComponent.h"
 #include "Ability/FCAbilitySystemComponent.h"
 #include "Ability/FCGameplayAbility.h"
 #include "Ability/AttributeSet/FCCharacterAttributeSet.h"
+#include "Player/FCPlayerState.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(FCCharacterBase)
 
@@ -88,7 +91,18 @@ void AFCCharacterBase::OnRep_PlayerState()
 
 class UAbilitySystemComponent* AFCCharacterBase::GetAbilitySystemComponent() const
 {
-	return AbilitySystemComponent.Get();
+	if (AbilitySystemComponent.IsValid())
+	{
+		return AbilitySystemComponent.Get();
+	}
+
+	AFCPlayerState* PS = GetPlayerState<AFCPlayerState>();
+	if (PS)
+	{
+		return PS->GetAbilitySystemComponent();
+	}
+
+	return nullptr;
 }
 
 void AFCCharacterBase::InitializeAttributes()
@@ -205,7 +219,16 @@ void AFCCharacterBase::NotifyDeath()
 
 void AFCCharacterBase::NotifyFinishDeath()
 {
-	// Iniciar Ragdoll?
+	SetReplicateMovement(false);
+	GetCharacterMovement()->bIgnoreClientMovementErrorChecksAndCorrection = true;
+
+	GetCharacterMovement()->SetMovementMode(MOVE_None);
+
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	GetMesh()->SetCollisionObjectType(ECC_PhysicsBody);
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	GetMesh()->SetAllBodiesBelowSimulatePhysics(TEXT("pelvis"), true, true);
 
 	SetLifeSpan(5.f);
 }

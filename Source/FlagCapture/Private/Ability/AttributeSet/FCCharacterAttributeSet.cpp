@@ -6,6 +6,9 @@
 #include "GameplayEffectTypes.h"
 #include "Character/FCCharacterBase.h"
 #include "Player/FCPlayerController.h"
+#include "Game/FCGameMode.h"
+#include "Weapon/FCWeapon.h"
+#include "Character/FCCharacter.h"
 
 
 DEFINE_LOG_CATEGORY_STATIC(LogFCCharacterAttributeSet, Log, All);
@@ -37,13 +40,15 @@ void UFCCharacterAttributeSet::PostGameplayEffectExecute(const FGameplayEffectMo
 {
 	Super::PostGameplayEffectExecute(Data);
 
+	AFCGameMode* const GM = GetWorld()->GetAuthGameMode<AFCGameMode>();
+	if (!GM) return;
+
 	FGameplayEffectContextHandle Context = Data.EffectSpec.GetContext();
 	UAbilitySystemComponent* Source = Context.GetOriginalInstigatorAbilitySystemComponent();
 	const FGameplayTagContainer& SourceTags = *Data.EffectSpec.CapturedSourceTags.GetAggregatedTags();
 	FGameplayTagContainer SpecAssetTags;
 	Data.EffectSpec.GetAllAssetTags(SpecAssetTags);
 
-	// Get the Target actor, which should be our owner
 	AActor* TargetActor = nullptr;
 	AController* TargetController = nullptr;
 	AFCCharacterBase* TargetCharacter = nullptr;
@@ -54,7 +59,6 @@ void UFCCharacterAttributeSet::PostGameplayEffectExecute(const FGameplayEffectMo
 		TargetCharacter = Cast<AFCCharacterBase>(TargetActor);
 	}
 
-	// Get the Source actor
 	AActor* SourceActor = nullptr;
 	AController* SourceController = nullptr;
 	AFCCharacterBase* SourceCharacter = nullptr;
@@ -70,7 +74,6 @@ void UFCCharacterAttributeSet::PostGameplayEffectExecute(const FGameplayEffectMo
 			}
 		}
 
-		// Use the controller to find the source pawn
 		if (SourceController)
 		{
 			SourceCharacter = Cast<AFCCharacterBase>(SourceController->GetPawn());
@@ -80,7 +83,6 @@ void UFCCharacterAttributeSet::PostGameplayEffectExecute(const FGameplayEffectMo
 			SourceCharacter = Cast<AFCCharacterBase>(SourceActor);
 		}
 
-		// Set the causer actor based on context if it's set
 		if (Context.GetEffectCauser())
 		{
 			SourceActor = Context.GetEffectCauser();
@@ -95,8 +97,10 @@ void UFCCharacterAttributeSet::PostGameplayEffectExecute(const FGameplayEffectMo
 			HitResult = *Context.GetHitResult();
 		}
 
-		const float LocalDamageDone = GetDamage();
+		float LocalDamageDone = GetDamage();
 		SetDamage(0.f);
+
+		GM->CalcDamage(LocalDamageDone, SourceController, TargetController);
 
 		if (LocalDamageDone > 0.0f)
 		{
@@ -121,22 +125,34 @@ void UFCCharacterAttributeSet::PostGameplayEffectExecute(const FGameplayEffectMo
 
 				const FHitResult* Hit = Data.EffectSpec.GetContext().GetHitResult();
 				
-				// Talvez fazer algo com o hit?
-
-				if (SourceActor != TargetActor)
-				{
-					AFCPlayerController* PC = Cast<AFCPlayerController>(SourceController);
-					if (PC)
-					{
-						// @todo: Notify Player Controller for UI stuff
-					}
-				}
-
-				if (!TargetCharacter->IsAlive())
+				if (Hit)
 				{
 					if (SourceController != TargetController)
 					{
-						// @todo: Finalizar pontuação
+						if (AFCPlayerController* SourcePC = Cast<AFCPlayerController>(SourceController))
+						{
+							SourcePC->NotifyOnHit(TargetCharacter, *Hit, LocalDamageDone);
+						}
+					}
+
+					if (!TargetCharacter->IsAlive())
+					{
+						if (SourceController != TargetController)
+						{
+							FKillEventData KillEventData;
+							KillEventData.DamageCauserHandle = SourceActor;
+							KillEventData.bIsHeadshot = Hit->BoneName.ToString().ToLower().Equals("head");
+
+							if (AFCCharacter* SourcePP = Cast<AFCCharacter>(SourceCharacter))
+							{
+								if (AFCWeapon* SourceWeapon = SourcePP->GetWeapon())
+								{
+									KillEventData.DamageType = SourceWeapon->DamageType;
+								}
+							}
+
+							GM->OnCharacterDied(TargetCharacter, SourceController, KillEventData);
+						}
 					}
 				}
 			}

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "GenericTeamAgentInterface.h"
+
 #include "FCTypes.generated.h"
 
 #define FC_PRINT_FILE (FString(FPaths::GetCleanFilename(TEXT(__FILE__))))
@@ -11,6 +13,16 @@
 #define COLLISION_PROJECTILE					ECollisionChannel::ECC_GameTraceChannel2
 #define COLLISION_ABILITYOVERLAPPROJECTILE		ECollisionChannel::ECC_GameTraceChannel3
 #define COLLISION_PICKUP						ECollisionChannel::ECC_GameTraceChannel4
+
+inline int32 GenericTeamIdToInteger(FGenericTeamId ID)
+{
+	return (ID == FGenericTeamId::NoTeam) ? INDEX_NONE : (int32)ID;
+}
+
+inline FGenericTeamId IntegerToGenericTeamId(int32 ID)
+{
+	return (ID == INDEX_NONE) ? FGenericTeamId::NoTeam : FGenericTeamId((uint8)ID);
+}
 
 UENUM(BlueprintType)
 enum class EAbilityInputID : uint8
@@ -39,7 +51,7 @@ enum class ETeamSide : uint8
 };
 
 UENUM(BlueprintType)
-enum class EGameTimer : uint8
+enum EGameTimer
 {
 	EGT_Listen		UMETA(DisplayName = "Listen"),
 	EGT_Waiting		UMETA(DisplayName = "Waiting"),
@@ -72,6 +84,56 @@ enum class EGameInitialState : uint8
 	InProgress		UMETA(DisplayName = "In Progress"),
 	Ended			UMETA(DisplayName = "Ended"),
 	NextGame		UMETA(DisplayName = "Next Game")
+};
+
+UENUM(BlueprintType)
+enum EPlayerClassType
+{
+	EPCT_Class1			UMETA(DisplayName = "Class 1"),
+	EPCT_Class2			UMETA(DisplayName = "Class 2"),
+	EPCT_Class3			UMETA(DisplayName = "Class 3"),
+
+	EPCT_Max			UMETA(Hidden)
+};
+
+UENUM(BlueprintType)
+enum class EDamageResultType : uint8
+{
+	EDRT_Normal			UMETA(DisplayName = "Normal"),
+	EDRT_Critical		UMETA(DisplayName = "Critical"),
+	EDRT_Headshoot		UMETA(DisplayName = "Headshoot"),
+};
+
+USTRUCT(BlueprintType)
+struct FServerMapAndModeArgs
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default", meta = (ExposeOnSpawn = "true"))
+	FString LevelPath;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default", meta = (ExposeOnSpawn = "true"))
+	FString GameMode;
+
+	FServerMapAndModeArgs()
+		: LevelPath(TEXT(""))
+		, GameMode(TEXT(""))
+	{}
+
+	FServerMapAndModeArgs(FString InLevelPath, FString InGameMode)
+		: LevelPath(InLevelPath)
+		, GameMode(InGameMode)
+	{}
+
+	bool operator==(const FServerMapAndModeArgs& OtherServerMapAndModeArgs) const
+	{
+		return OtherServerMapAndModeArgs.GameMode.Equals(GameMode) && OtherServerMapAndModeArgs.LevelPath.Equals(LevelPath);
+	}
+
+	bool IsValid() const
+	{
+		return !LevelPath.IsEmpty() && !GameMode.IsEmpty();
+	}
 };
 
 USTRUCT(BlueprintType)
@@ -113,11 +175,6 @@ struct FKillEventData
 	FKillEventData()
 		: DamageType(nullptr)
 		, DamageCauserHandle(FActorInstanceHandle())
-	{}
-
-	FKillEventData(TSubclassOf<UDamageType> InDamageType, class AActor* InDamageCauser)
-		: DamageType(InDamageType)
-		, DamageCauserHandle(InDamageCauser)
 	{}
 
 	bool IsValid() const
@@ -175,16 +232,10 @@ struct FDamageData
 	TObjectPtr<UTexture2D> DisplayImage;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default")
-	TObjectPtr<UTexture2D> HeadshotImage;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default")
 	bool bIsHeadshot;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default")
 	int32 KillReward;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default")
-	int32 CombatReward;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default")
 	int32 HeadshotReward;
@@ -193,21 +244,17 @@ struct FDamageData
 		: DisplayName(FText::FromString(TEXT("")))
 		, KillFeedIcon(nullptr)
 		, DisplayImage(nullptr)
-		, HeadshotImage(nullptr)
 		, bIsHeadshot(false)
 		, KillReward(100)
-		, CombatReward(50)
 		, HeadshotReward(50)
 	{}
 
-	FDamageData(FText InDisplayName, UTexture2D* InKillFeedIcon, UTexture2D* InDisplayImage, UTexture2D* InHeadshotImage, bool InHeadshot, int32 InKillReward, int32 InCombatReward, int32 InHeadshotReward)
+	FDamageData(FText InDisplayName, UTexture2D* InKillFeedIcon, UTexture2D* InDisplayImage, bool InHeadshot, int32 InKillReward, int32 InHeadshotReward)
 		: DisplayName(InDisplayName)
 		, KillFeedIcon(InKillFeedIcon)
 		, DisplayImage(InDisplayImage)
-		, HeadshotImage(InHeadshotImage)
 		, bIsHeadshot(InHeadshot)
 		, KillReward(InKillReward)
-		, CombatReward(InCombatReward)
 		, HeadshotReward(InHeadshotReward)
 	{}
 
@@ -220,4 +267,29 @@ struct FDamageData
 
 		return false;
 	}
+};
+
+USTRUCT(BlueprintType)
+struct FPlayerLoadout
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default", meta = (MetaClass = "/Script/FlagCapture.FCWeapon"))
+	TArray<FSoftClassPath> Weapons;
+
+	FPlayerLoadout()
+		: Weapons({})
+	{}
+};
+
+USTRUCT(BlueprintType)
+struct FClassLoadout
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Default")
+	FPlayerLoadout Loadout;
+
+	FClassLoadout()
+	{}
 };

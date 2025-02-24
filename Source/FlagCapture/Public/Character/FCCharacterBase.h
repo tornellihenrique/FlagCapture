@@ -77,6 +77,9 @@ public:
 	virtual void NotifyDeath();
 	virtual void NotifyFinishDeath();
 
+	UFUNCTION(BlueprintImplementableEvent, Category = "Hit Reaction", meta = (DisplayName = "On Hit Status"))
+	void OnHitStatus(EDamageResultType DamageResultType, const FVector& ImpactPoint, float DamageAmount);
+
 public:
 	UPROPERTY(BlueprintAssignable, Category = "Events")
 	FCharacterDiedDelegate OnCharacterDied;

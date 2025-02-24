@@ -8,9 +8,9 @@ public class FlagCapture : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-        PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "GameplayTags", "InputCore", "NetCore", "UMG", "AIModule", "NavigationSystem", "GameplayAbilities" });
+        PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "GameplayTags", "InputCore", "NetCore", "UMG", "AIModule", "NavigationSystem", "GameplayAbilities", "DeveloperSettings" });
 
-        PrivateDependencyModuleNames.AddRange(new string[] { "EnhancedInput", "GameplayTasks", "AIModule", "MotionWarping", "Niagara", "PhysicsCore", "Slate", "SlateCore", "EngineSettings" });
+        PrivateDependencyModuleNames.AddRange(new string[] { "CoreOnline", "EnhancedInput", "GameplayTasks", "AIModule", "MotionWarping", "Niagara", "PhysicsCore", "Slate", "SlateCore", "EngineSettings" });
 
     }
 }

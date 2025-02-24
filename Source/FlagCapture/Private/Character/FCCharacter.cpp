@@ -12,12 +12,14 @@
 #include "Ability/AttributeSet/FCCharacterAttributeSet.h"
 #include "Ability/AttributeSet/FCAmmoAttributeSet.h"
 #include "Character/FCAnimInstance.h"
+#include "World/FCPlayableArea.h"
 
 
 DEFINE_LOG_CATEGORY_STATIC(LogFCCharacter, Log, All);
 
 AFCCharacter::AFCCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
+	, bInsidePlayableArea(true)
 {
 	AIPerceptionStimuliSourceComponent = CreateDefaultSubobject<UAIPerceptionStimuliSourceComponent>(FName{ TEXTVIEW("AIPerceptionStimuliSourceComponent") });
 
@@ -47,6 +49,10 @@ void AFCCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	Parameters.Condition = COND_SimulatedOnly;
 
 	DOREPLIFETIME_WITH_PARAMS_FAST(AFCCharacter, CurrentWeapon, Parameters);
+
+	Parameters.Condition = COND_OwnerOnly;
+
+	DOREPLIFETIME_WITH_PARAMS_FAST(AFCCharacter, bLoadoutInitialized, Parameters);
 }
 
 void AFCCharacter::PreInitializeComponents()
@@ -59,8 +65,6 @@ void AFCCharacter::PostInitializeComponents()
 	Super::PostInitializeComponents();
 
 	AnimInstance = Cast<UFCAnimInstance>(GetMesh()->GetAnimInstance());
-
-	GetWorldTimerManager().SetTimerForNextTick(this, &AFCCharacter::SpawnDefaultInventory);
 }
 
 void AFCCharacter::BeginPlay()
@@ -99,6 +103,24 @@ void AFCCharacter::Tick(float DeltaTime)
 		Delta.Normalize();
 		
 		AnimInstance->AimRotation = Delta;
+	}
+
+	if (IsLocallyControlled() && IsAlive())
+	{
+		if (::IsValid(CurrentArea))
+		{
+			const bool bCurrentInsidePlayableArea = CurrentArea->IsPontInsideArea3d(GetActorLocation());
+
+			if (bCurrentInsidePlayableArea != bInsidePlayableArea)
+			{
+				bInsidePlayableArea = bCurrentInsidePlayableArea;
+
+				if (AFCPlayerController* const PC = GetController<AFCPlayerController>())
+				{
+					PC->OnPlayableAreaStateChanged(bInsidePlayableArea);
+				}
+			}
+		}
 	}
 }
 
@@ -189,8 +211,9 @@ void AFCCharacter::OnRep_PlayerState()
 
 		AbilitySystemComponent->SetTagMapCount(DeadTag, 0);
 
-		SetHealth(GetMaxHealth());
-		SetStamina(GetMaxStamina());
+		// MaxHealth 0.0 para clients por algum motivo (bug? UE4 funciona)
+// 		SetHealth(GetMaxHealth());
+// 		SetStamina(GetMaxStamina());
 	}
 }
 
@@ -222,22 +245,87 @@ void AFCCharacter::NotifyFinishDeath()
 	Super::NotifyFinishDeath();
 }
 
-void AFCCharacter::SpawnDefaultInventory()
+void AFCCharacter::PopulateLoadout(AController* InController, const FPlayerLoadout& InLoadout)
 {
-	if (GetNetMode() == NM_Client) return;
+	UE_LOG(LogFCCharacter, Verbose, TEXT("%s"), *FC_LOGS_LINE);
 
-	int32 NumWeaponClasses = DefaultWeapons.Num();
+	int32 NumWeaponClasses = InLoadout.Weapons.Num();
 	for (int32 i = 0; i < NumWeaponClasses; i++)
 	{
-		if (!DefaultWeapons[i]) continue;
+		if (!InLoadout.Weapons[i].IsValid()) continue;
 
-		AFCWeapon* NewWeapon = GetWorld()->SpawnActorDeferred<AFCWeapon>(DefaultWeapons[i], FTransform::Identity, this, this, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
-		
-		UGameplayStatics::FinishSpawningActor(NewWeapon, FTransform::Identity);
+		const TSubclassOf<AFCWeapon>& WeaponClass = InLoadout.Weapons[i].TryLoadClass<AFCWeapon>();
+		if (WeaponClass)
+		{
+			AFCWeapon* NewWeapon = GetWorld()->SpawnActorDeferred<AFCWeapon>(WeaponClass, FTransform::Identity, this, this, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
 
-		bool bEquipFirstWeapon = i == 0;
-		AddWeaponToInventory(NewWeapon, bEquipFirstWeapon);
+			// ...
+
+			UGameplayStatics::FinishSpawningActor(NewWeapon, FTransform::Identity);
+
+			AddWeaponToInventory(NewWeapon);
+		}
 	}
+
+	bLoadoutInitialized = true;
+	MARK_PROPERTY_DIRTY_FROM_NAME(AFCCharacter, bLoadoutInitialized, this);
+
+	OnLoadoutInitialized.ExecuteIfBound();
+}
+
+bool AFCCharacter::IsWeaponListInitialized() const
+{
+	return bLoadoutInitialized;
+}
+
+void AFCCharacter::OnPlaying(AFCPlayableArea* InCurrentArea)
+{
+	if (GetWeapon()) return;
+
+	CurrentArea = InCurrentArea;
+
+	K2_OnPlaying();
+
+	if (GetLocalRole() < ROLE_Authority)
+	{
+		ServerOnPlaying(InCurrentArea);
+
+		return;
+	}
+
+	const TArray<AFCWeapon*>& WeaponList = GetWeaponList();
+	if (WeaponList.Num() > 0)
+	{
+		EquipWeapon(WeaponList[0]);
+		ClientSyncCurrentWeapon(CurrentWeapon);
+	}
+
+	GetWorldTimerManager().SetTimer(TimerHandle_Damageable, this, &AFCCharacter::Damageable, DamageableTimeAfterRespawn, false);
+}
+
+void AFCCharacter::ServerOnPlaying_Implementation(AFCPlayableArea* InCurrentArea)
+{
+	OnPlaying(InCurrentArea);
+}
+
+void AFCCharacter::OnMatchEnded()
+{
+	if (IsLocallyControlled())
+	{
+		if (AbilitySystemComponent.IsValid())
+		{
+			AbilitySystemComponent->RemoveLooseGameplayTag(CurrentWeaponTag);
+			CurrentWeaponTag = NoWeaponTag;
+			AbilitySystemComponent->AddLooseGameplayTag(CurrentWeaponTag);
+		}
+
+		DisableInput(GetController<APlayerController>());
+	}
+}
+
+void AFCCharacter::Damageable()
+{
+	SetCanBeDamaged(true);
 }
 
 void AFCCharacter::SetCurrentWeapon(AFCWeapon* NewWeapon, AFCWeapon* LastWeapon)
@@ -276,11 +364,8 @@ void AFCCharacter::SetCurrentWeapon(AFCWeapon* NewWeapon, AFCWeapon* LastWeapon)
 			AbilitySystemComponent->AddLooseGameplayTag(CurrentWeaponTag);
 		}
 
-		AFCPlayerController* PC = GetController<AFCPlayerController>();
-		if (PC && PC->IsLocalController())
-		{
-			// @todo: Notify Player Controller for UI stuff
-		}
+		OnAmmoAmountChanged.Broadcast(CurrentWeapon->GetAmmoAmount());
+		OnAmmoReserveChanged.Broadcast(GetAmmoReserveAmount());
 
 		CurrentWeapon->OnAmmoAmountChanged.AddDynamic(this, &AFCCharacter::CurrentWeaponAmmoAmountChanged);
 
@@ -332,11 +417,8 @@ void AFCCharacter::UnEquipCurrentWeapon()
 	UnEquipWeapon(CurrentWeapon);
 	CurrentWeapon = nullptr;
 
-	AFCPlayerController* PC = GetController<AFCPlayerController>();
-	if (PC && PC->IsLocalController())
-	{
-		// @todo: Notify Player Controller for UI stuff
-	}
+	OnAmmoAmountChanged.Broadcast(0);
+	OnAmmoReserveChanged.Broadcast(0);
 }
 
 void AFCCharacter::ServerSyncCurrentWeapon_Implementation()
@@ -364,7 +446,7 @@ void AFCCharacter::OnAbilityActivationFailed(const UGameplayAbility* FailedAbili
 	}
 }
 
-bool AFCCharacter::AddWeaponToInventory(AFCWeapon* NewWeapon, bool bEquipWeapon /*= false*/)
+bool AFCCharacter::AddWeaponToInventory(AFCWeapon* NewWeapon)
 {
 	if (HasWeapon(NewWeapon))
 	{
@@ -376,12 +458,6 @@ bool AFCCharacter::AddWeaponToInventory(AFCWeapon* NewWeapon, bool bEquipWeapon 
 	Inventory.Weapons.Add(NewWeapon);
 	NewWeapon->OnPickup(this);
 	NewWeapon->AddAbilities();
-
-	if (bEquipWeapon)
-	{
-		EquipWeapon(NewWeapon);
-		ClientSyncCurrentWeapon(CurrentWeapon);
-	}
 
 	return true;
 }
@@ -472,6 +548,16 @@ bool AFCCharacter::HasWeapon(AFCWeapon* InWeapon)
 	return false;
 }
 
+ETeamSide AFCCharacter::GetPlayerSide() const
+{
+	if (AFCPlayerState* PS = GetPlayerState<AFCPlayerState>())
+	{
+		return PS->GetPlayerSide();
+	}
+
+	return ETeamSide::None;
+}
+
 int32 AFCCharacter::GetAmmoAmount() const
 {
 	if (CurrentWeapon)
@@ -496,8 +582,7 @@ int32 AFCCharacter::GetAmmoReserveAmount() const
 {
 	if (CurrentWeapon && AmmoAttributeSet.IsValid())
 	{
-		FGameplayTag AmmoType = CurrentWeapon->AmmoType;
-		FGameplayAttribute Attribute = AmmoAttributeSet->GetAmmoAttributeFromTag(AmmoType);
+		FGameplayAttribute Attribute = AmmoAttributeSet->GetAmmoAttributeFromTag(CurrentWeapon->AmmoType);
 		if (Attribute.IsValid())
 		{
 			return AbilitySystemComponent->GetNumericAttribute(Attribute);
@@ -548,20 +633,12 @@ AFCWeapon* AFCCharacter::GetPreviousWeapon()
 
 void AFCCharacter::CurrentWeaponAmmoAmountChanged(int32 OldAmmoAmount, int32 NewAmmoAmount)
 {
-	AFCPlayerController* PC = GetController<AFCPlayerController>();
-	if (PC && PC->IsLocalController())
-	{
-		// @todo: Notify Player Controller for UI stuff
-	}
+	OnAmmoAmountChanged.Broadcast(NewAmmoAmount);
 }
 
 void AFCCharacter::CurrentWeaponAmmoReserveChanged(const FOnAttributeChangeData& Data)
 {
-	AFCPlayerController* PC = GetController<AFCPlayerController>();
-	if (PC && PC->IsLocalController())
-	{
-		// @todo: Notify Player Controller for UI stuff
-	}
+	OnAmmoReserveChanged.Broadcast(Data.NewValue);
 }
 
 void AFCCharacter::WeaponChangingDelayReplicationTagChanged(const FGameplayTag CallbackTag, int32 NewCount)
