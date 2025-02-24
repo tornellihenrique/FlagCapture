@@ -12,6 +12,7 @@
 #include "Ability/Utility/FCGATA_SphereTrace.h"
 #include "FCTypes.h"
 #include "GameFramework/Controller.h"
+#include "Character/FCCharacter.h"
 
 
 DEFINE_LOG_CATEGORY_STATIC(LogFCWeapon, Log, All);
@@ -25,6 +26,7 @@ AFCWeapon::AFCWeapon(const FObjectInitializer& ObjectInitializer)
 	WeaponMesh->AlwaysLoadOnClient = true;
 	WeaponMesh->AlwaysLoadOnServer = true;
 	WeaponMesh->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
+	WeaponMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
 	WeaponMesh->SetCanEverAffectNavigation(false);
 
 	CollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("CollisionBox"));
@@ -175,19 +177,12 @@ void AFCWeapon::OnRep_Instigator()
 
 	Timespan = 0.0f;
 
-	if (!GetInstigator())
+	if (GetInstigator())
 	{
-		CollisionBox->SetGenerateOverlapEvents(true);
+		AttachToComponent(GetInstigator()->GetRootComponent(), FAttachmentTransformRules::SnapToTargetIncludingScale);
+		WeaponMesh->CastShadow = false;
+		SetActorHiddenInGame(true);
 
-		if (UAnimInstance* const AnimInstance = WeaponMesh->GetAnimInstance())
-		{
-			AnimInstance->StopAllMontages(0.0f);
-		}
-
-		AbilitySystemComponent = nullptr;
-	}
-	else
-	{
 		CollisionBox->SetGenerateOverlapEvents(false);
 
 		WeaponMesh->SetAllPhysicsLinearVelocity(FVector::ZeroVector);
@@ -200,8 +195,17 @@ void AFCWeapon::OnRep_Instigator()
 			AbilitySystemComponent = Cast<UFCAbilitySystemComponent>(ASI->GetAbilitySystemComponent());
 		}
 	}
+	else
+	{
+		CollisionBox->SetGenerateOverlapEvents(true);
 
-	SetActorHiddenInGame(false);
+		if (UAnimInstance* const AnimInstance = WeaponMesh->GetAnimInstance())
+		{
+			AnimInstance->StopAllMontages(0.0f);
+		}
+
+		AbilitySystemComponent = nullptr;
+	}
 }
 
 class UAbilitySystemComponent* AFCWeapon::GetAbilitySystemComponent() const
@@ -287,7 +291,7 @@ void AFCWeapon::OnDrop(ACharacter* InCharacter)
 				const FVector& UpVector = FRotationMatrix(ControlRotation).GetScaledAxis(EAxis::Z);
 				const FVector& CombinedVector = UpVector.RotateAngleAxis(15.0f, ForwardVector);
 
-				DropWeapon(GetActorLocation(), GetActorRotation().GetNormalized().Vector(), CombinedVector);
+				DropWeapon(InCharacter->GetActorLocation(), GetActorRotation().GetNormalized().Vector(), CombinedVector);
 			}
 		}
 
@@ -329,7 +333,7 @@ void AFCWeapon::OnUnEquip()
 
 	if (::IsValid(WeaponMesh))
 	{
-		WeaponMesh->DetachFromComponent(FDetachmentTransformRules::KeepRelativeTransform);
+		AttachToComponent(OwningCharacter->GetRootComponent(), FAttachmentTransformRules::SnapToTargetIncludingScale);
 		WeaponMesh->CastShadow = false;
 		WeaponMesh->bCastHiddenShadow = false;
 		SetActorHiddenInGame(true);
@@ -346,12 +350,14 @@ void AFCWeapon::DropWeapon_Implementation(FVector_NetQuantize InLocation, FVecto
 	SetActorTickEnabled(GetNetMode() != NM_DedicatedServer);
 	SetActorLocationAndRotation(InLocation, InRotation.Rotation(), false, nullptr, ETeleportType::TeleportPhysics);
 	WeaponMesh->SetCollisionProfileName(UCollisionProfile::PhysicsActor_ProfileName);
+	WeaponMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+	WeaponMesh->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
+	WeaponMesh->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
 	WeaponMesh->SetMassOverrideInKg(NAME_None, 10.0f);
 
-	if (ACharacter* const OldCharacter = Cast<ACharacter>(GetAttachParentActor()))
+	if (GetAttachParentActor())
 	{
-		const FDetachmentTransformRules& Rules = FDetachmentTransformRules(EDetachmentRule::KeepWorld, EDetachmentRule::KeepWorld, EDetachmentRule::KeepRelative, false);
-		DetachFromActor(Rules);
+		DetachFromActor(FDetachmentTransformRules(EDetachmentRule::KeepWorld, EDetachmentRule::KeepWorld, EDetachmentRule::KeepRelative, false));
 	}
 
 	if (GetNetMode() == NM_DedicatedServer) return;
@@ -419,7 +425,21 @@ void AFCWeapon::UpdateCollisionBox()
 
 void AFCWeapon::OnCollisionBoxOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
+	if (!IsValidLowLevel()) return;
 
+	if (!GetInstigator())
+	{
+		if (AFCCharacter* OtherCharacter = Cast<AFCCharacter>(OtherActor))
+		{
+			if (!OtherCharacter->IsAlive() || !OtherCharacter->GetAbilitySystemComponent() || OtherCharacter->GetAbilitySystemComponent()->HasAnyMatchingGameplayTags(RestrictedPickupTags))
+			{
+				if (OtherCharacter->AddWeaponToInventory(this))
+				{
+					UE_LOG(LogFCWeapon, Verbose, TEXT("%s %s Pickup %s"), *FC_LOGS_LINE, *OtherCharacter->GetName(), *GetName());
+				}
+			}
+		}
+	}
 }
 
 void AFCWeapon::OnRep_AmmoAmount(int32 OldAmmoAmount)

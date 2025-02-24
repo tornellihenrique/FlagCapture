@@ -20,3 +20,13 @@
 - 4 hours
 - Starting overall gamemode flow implementation (game mode, game state, player state, player controller, UI)
 - Base classes creation and declarations
+
+2025-02-22
+- 10 hours
+- Working on gameflow
+
+2025-02-23
+- 10 hours
+- Working on gameflow - Finishing!
+- Working on UI and final fixes
+- Committing first playable version

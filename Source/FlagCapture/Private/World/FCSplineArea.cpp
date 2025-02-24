@@ -76,6 +76,8 @@ void AFCSplineArea::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(AFCSplineArea, DefaultSize))
 	{
+		ClearSpline();
+
 		CreateArea();
 	}
 }
@@ -109,8 +111,6 @@ void AFCSplineArea::Tick(float DeltaTime)
 
 void AFCSplineArea::CreateArea()
 {
-	ClearSpline();
-
 	for (int32 i = 0; i < Spline->GetNumberOfSplinePoints(); i++)
 	{
 		Spline->SetSplinePointType(i, ESplinePointType::Linear, false);

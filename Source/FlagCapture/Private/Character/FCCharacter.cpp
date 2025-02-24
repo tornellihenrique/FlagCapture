@@ -211,7 +211,7 @@ void AFCCharacter::OnRep_PlayerState()
 
 		AbilitySystemComponent->SetTagMapCount(DeadTag, 0);
 
-		// MaxHealth 0.0 para clients por algum motivo (bug? UE4 funciona)
+		// MaxHealth 0.0 aqui para clients por algum motivo (bug? UE4 funciona)
 // 		SetHealth(GetMaxHealth());
 // 		SetStamina(GetMaxStamina());
 	}

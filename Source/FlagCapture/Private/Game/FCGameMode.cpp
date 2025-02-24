@@ -23,11 +23,10 @@ AFCGameMode::AFCGameMode(const FObjectInitializer& ObjectInitializer)
 	, BulletDamageMultiplier(1.0f)
 	, PenaltyPoint(-100)
 	, MinimumPlayerToStartMatch(1)
-	, NumTickets(3)
 	, TimeToRemovePlayerBody(10.0f)
 	, bFriendlyFire(false)
 	, bEnableSpectator(true)
-	, bDevelopmentMode(false)
+	, bDevelopmentMode(true)
 {
 	DefaultPawnClass = nullptr;
 

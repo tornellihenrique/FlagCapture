@@ -1368,20 +1368,15 @@ void AFCPlayerController::ClientOnHit_Implementation(AActor* HitActor, FVector_N
 			const FString BoneName = HitBoneName.ToString().ToLower();
 			if (BoneName.Equals(TEXT("head"), ESearchCase::CaseSensitive))
 			{
-				if (DamageAmount >= HitCharacter->GetMaxHealth())
-				{
-					DamageResultType = EDamageResultType::EDRT_Headshoot;
-				}
-				else
-				{
-					DamageResultType = EDamageResultType::EDRT_Critical;
-				}
+				DamageResultType = EDamageResultType::EDRT_Headshoot;
 			}
 			else if (BoneName.Equals(TEXT("neck_01"), ESearchCase::CaseSensitive)
-				|| BoneName.Equals(TEXT("pelvis"), ESearchCase::CaseSensitive)
+				|| BoneName.Equals(TEXT("neck_02"), ESearchCase::CaseSensitive)
 				|| BoneName.Equals(TEXT("spine_01"), ESearchCase::CaseSensitive)
 				|| BoneName.Equals(TEXT("spine_02"), ESearchCase::CaseSensitive)
-				|| BoneName.Equals(TEXT("spine_03"), ESearchCase::CaseSensitive))
+				|| BoneName.Equals(TEXT("spine_03"), ESearchCase::CaseSensitive)
+				|| BoneName.Equals(TEXT("spine_04"), ESearchCase::CaseSensitive)
+				|| BoneName.Equals(TEXT("spine_04"), ESearchCase::CaseSensitive))
 			{
 				DamageResultType = EDamageResultType::EDRT_Critical;
 			}

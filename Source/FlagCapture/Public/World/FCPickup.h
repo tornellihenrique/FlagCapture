@@ -63,13 +63,13 @@ protected:
 	virtual void GivePickupTo(AFCCharacterBase* Pawn);
 
 	virtual void OnPickedUp();
-	UFUNCTION(BlueprintImplementableEvent, meta = (DisplayName = "OnPickedUp"))
+	UFUNCTION(BlueprintImplementableEvent, meta = (DisplayName = "On Picked Up"))
 	void K2_OnPickedUp();
 
 	virtual void RespawnPickup();
 
 	virtual void OnRespawned();
-	UFUNCTION(BlueprintImplementableEvent, meta = (DisplayName = "OnRespawned"))
+	UFUNCTION(BlueprintImplementableEvent, meta = (DisplayName = "On Respawned"))
 	void K2_OnRespawned();
 
 	UFUNCTION()

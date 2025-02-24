@@ -42,35 +42,34 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Player Events")
 	void OnDeathEvent();
 
-public:
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Player Events")
 	void SetMaxHealth(float MaxHealth);
 
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Player Events")
 	void SetCurrentHealth(float CurrentHealth);
 
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Player Events")
 	void SetHealthPercentage(float HealthPercentage);
 
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Player Events")
 	void SetHealthRegenRate(float HealthRegenRate);
 
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Player Events")
 	void SetMaxStamina(float MaxStamina);
 
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Player Events")
 	void SetCurrentStamina(float CurrentStamina);	
 
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Player Events")
 	void SetStaminaPercentage(float StaminaPercentage);
 
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Player Events")
 	void SetStaminaRegenRate(float StaminaRegenRate);
 
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Player Events")
 	void SetAmmoAmount(int32 AmmoAmount);
 
-	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable, Category = "Player Events")
 	void SetReserveAmmoAmount(int32 ReserveAmmoAmount);
 	
 };

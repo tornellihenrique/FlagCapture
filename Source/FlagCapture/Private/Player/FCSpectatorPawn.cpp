@@ -66,7 +66,6 @@ void AFCSpectatorPawn::Tick(float DeltaSeconds)
 	if (!IsLocallyControlled()) return;
 
 	float FinalSize = 0.0f;
-	const bool bTrackingMode = true;
 	const bool bIsValidTarget = FocusedPawn && ::IsValid(FocusedPawn) && FocusedPawn->GetPlayerState() && ::IsValid(FocusedPawn->GetPlayerState());
 	const FVector OriginLocation = Camera->GetComponentLocation();
 	float InterpolationSpeed = CameraRotationInterpSpeed;
@@ -110,7 +109,7 @@ void AFCSpectatorPawn::Tick(float DeltaSeconds)
 
 	const float Division = FMath::GetMappedRangeValueClamped(FVector2D(0.1f, 0.0f), FVector2D(1.0f, 8.0f), FinalSize);
 	const float DefaultFOV = GetDefault<AFCSpectatorPawn>()->FOV;
-	const float DesiredFOV = bTrackingMode && !bIsValidTarget ? DefaultFOV : DefaultFOV / Division;
+	const float DesiredFOV = !bIsValidTarget ? DefaultFOV : DefaultFOV / Division;
 
 	const float TargetFOV = FMath::FInterpTo(Camera->FieldOfView, DesiredFOV, DeltaSeconds, CameraInterpSpeed);
 	Camera->SetFieldOfView(TargetFOV);

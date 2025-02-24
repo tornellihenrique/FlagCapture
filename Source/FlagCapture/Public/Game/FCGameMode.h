@@ -38,9 +38,6 @@ public:
 	int32 MinimumPlayerToStartMatch;
 
 	UPROPERTY(config, EditDefaultsOnly, Category = "Configs")
-	int32 NumTickets;
-
-	UPROPERTY(config, EditDefaultsOnly, Category = "Configs")
 	int32 MaxPlayers;
 
 	UPROPERTY(config, EditDefaultsOnly, Category = "Configs")
